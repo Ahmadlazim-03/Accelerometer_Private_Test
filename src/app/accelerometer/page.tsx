@@ -195,237 +195,179 @@ export default function AccelerometerPage() {
 
   const tooltipStyle = { background: "#0d1321", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", fontSize: "11px", color: "#e2e8f0" };
 
+  // --- 3D Rotation Math ---
+  // Menghitung kemiringan (Pitch & Roll) berdasarkan gravitasi pada sumbu
+  const pitch = Math.atan2(reading.y, reading.z) * (180 / Math.PI);
+  const roll = Math.atan2(-reading.x, Math.sqrt(reading.y * reading.y + reading.z * reading.z)) * (180 / Math.PI);
+
   return (
-    <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            <Activity className="text-cyan-400" size={20} />
-            Live Sensor Monitor
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">Real-time accelerometer telemetry &amp; cloud sync</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="glass-card px-3 py-1.5 flex items-center gap-2 text-xs">
-            {isConnected ? <Wifi size={12} className="text-emerald-400" /> : <WifiOff size={12} className="text-slate-600" />}
-            <span className={isConnected ? "text-emerald-400" : "text-slate-600"}>{isConnected ? "Synced" : "Local"}</span>
+    <div className="relative w-full h-[calc(100vh-2rem)] overflow-hidden bg-[#060a14] flex flex-col items-center justify-center perspective-[1200px]">
+      
+      {/* Floating Header Controls */}
+      <div className="absolute top-6 left-6 right-6 z-50 flex flex-wrap items-center justify-between gap-4">
+        <div className="glass-card px-5 py-3 flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Smartphone size={16} className="text-cyan-400" />
+            <span className="text-sm font-bold text-white font-mono">{deviceId}</span>
           </div>
-          <div className={`w-2.5 h-2.5 rounded-full ${isActive ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] pulse-ring" : "bg-slate-600"}`} />
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="glass-card p-3 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 bg-black/20 rounded-lg px-3 py-1.5">
-          <Smartphone size={13} className="text-slate-500" />
-          <input type="text" value={deviceId} onChange={e => setDeviceId(e.target.value)} className="bg-transparent text-sm text-cyan-400 font-mono font-semibold w-20 outline-none" />
-        </div>
-        <div className="w-px h-6 bg-white/10" />
-        {!isActive ? (
-          <button onClick={start} className="flex items-center gap-1.5 bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-cyan-500/25 active:scale-95 transition-all">
-            <Play size={14} /> Start
-          </button>
-        ) : (
-          <button onClick={stop} className="flex items-center gap-1.5 bg-rose-500/15 text-rose-400 border border-rose-500/25 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-rose-500/25 active:scale-95 transition-all">
-            <Square size={14} /> Stop
-          </button>
-        )}
-        <button onClick={send} disabled={!isActive} className="flex items-center gap-1.5 bg-violet-500/15 text-violet-400 border border-violet-500/25 disabled:opacity-30 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-violet-500/25 active:scale-95 transition-all">
-          <Send size={14} /> Send Batch
-        </button>
-        <button onClick={fetchLatest} className="flex items-center gap-1.5 bg-white/5 text-slate-300 border border-white/10 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-white/10 active:scale-95 transition-all">
-          <RotateCcw size={14} /> Fetch
-        </button>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[10px] text-slate-400 hidden md:block truncate max-w-xs">{statusMsg || "Ready"}</span>
           <div className="w-px h-5 bg-white/10" />
-          <span className="text-[10px] text-slate-500 font-semibold">Auto</span>
-          <button onClick={() => setAutoSend(!autoSend)} className={`w-8 h-4 rounded-full relative transition-colors ${autoSend ? "bg-cyan-500" : "bg-white/10"}`}>
-            <div className={`absolute top-[2px] w-3 h-3 rounded-full bg-white shadow transition-transform ${autoSend ? "translate-x-[18px]" : "translate-x-[2px]"}`} />
+          {!isActive ? (
+            <button onClick={start} className="flex items-center gap-1.5 bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-cyan-500/25 active:scale-95 transition-all">
+              <Play size={14} /> Start Sensor
+            </button>
+          ) : (
+            <button onClick={stop} className="flex items-center gap-1.5 bg-rose-500/15 text-rose-400 border border-rose-500/25 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-rose-500/25 active:scale-95 transition-all">
+              <Square size={14} /> Stop
+            </button>
+          )}
+          <button onClick={send} disabled={!isActive} className="flex items-center gap-1.5 bg-violet-500/15 text-violet-400 border border-violet-500/25 disabled:opacity-30 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-violet-500/25 active:scale-95 transition-all">
+            <Send size={14} /> Send Batch
           </button>
-          <select value={sendInterval} onChange={e => setSendInterval(+e.target.value)} className="bg-black/20 text-[10px] text-slate-300 border border-white/10 rounded px-1.5 py-1 outline-none">
-            <option value={2}>2s</option><option value={3}>3s</option><option value={5}>5s</option>
-          </select>
+        </div>
+
+        <div className="glass-card px-5 py-3 flex items-center gap-4 text-xs font-mono">
+          <div className="flex flex-col">
+            <span className="text-slate-500">PITCH</span>
+            <span className="text-cyan-400 font-bold">{pitch.toFixed(1)}°</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-slate-500">ROLL</span>
+            <span className="text-violet-400 font-bold">{roll.toFixed(1)}°</span>
+          </div>
+          <div className="w-px h-6 bg-white/10" />
+          <div className="flex flex-col">
+            <span className="text-slate-500">STATUS</span>
+            <span className="text-amber-400">{statusMsg || "Ready"}</span>
+          </div>
         </div>
       </div>
 
-      {/* Processing Options: Filter & Calibrate */}
-      <div className="glass-card p-3 flex flex-wrap items-center gap-4">
-        <button onClick={() => { setFilterEnabled(!filterEnabled); if (!filterEnabled) resetFilter(); }} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filterEnabled ? "bg-amber-500/15 text-amber-400 border border-amber-500/25" : "bg-white/5 text-slate-400 border border-white/10"}`}>
-          <Filter size={12} /> Low-Pass Filter {filterEnabled ? "ON" : "OFF"}
+      {/* Floating Settings & Calibrate */}
+      <div className="absolute bottom-6 left-6 z-50 flex items-center gap-3">
+        <button onClick={() => { setFilterEnabled(!filterEnabled); if (!filterEnabled) resetFilter(); }} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-lg ${filterEnabled ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-amber-500/20" : "bg-black/50 text-slate-400 border border-white/10 backdrop-blur-md"}`}>
+          <Filter size={14} /> LPF {filterEnabled ? "ON" : "OFF"}
         </button>
-        <div className="w-px h-5 bg-white/10" />
         {!calibrated ? (
-          <button onClick={handleCalibrate} disabled={!isActive} className="flex items-center gap-1.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 disabled:opacity-30 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-500/25 active:scale-95 transition-all">
-            <Crosshair size={12} /> Kalibrasi
+          <button onClick={handleCalibrate} disabled={!isActive} className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 disabled:opacity-30 px-4 py-2 rounded-xl text-xs font-semibold hover:bg-emerald-500/30 backdrop-blur-md active:scale-95 transition-all shadow-lg shadow-emerald-500/10">
+            <Crosshair size={14} /> Zero Calibrate
           </button>
         ) : (
-          <button onClick={handleClearCalibration} className="flex items-center gap-1.5 bg-rose-500/15 text-rose-400 border border-rose-500/25 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-rose-500/25 active:scale-95 transition-all">
-            <Crosshair size={12} /> Reset Kalibrasi
+          <button onClick={handleClearCalibration} className="flex items-center gap-1.5 bg-rose-500/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-semibold hover:bg-rose-500/30 backdrop-blur-md active:scale-95 transition-all shadow-lg shadow-rose-500/10">
+            <Crosshair size={14} /> Reset Calibrate
           </button>
         )}
-        {calibrated && (
-          <span className="text-[10px] text-slate-500 font-mono">
-            offset: [{calOffset.x.toFixed(2)}, {calOffset.y.toFixed(2)}, {calOffset.z.toFixed(2)}]
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-1.5 text-[10px] text-slate-500">
-          <Flame size={11} className="text-rose-400" />
-          <span>Mag: <span className="text-rose-400 font-mono font-bold">{mag.toFixed(2)}</span></span>
-        </div>
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-        {[
-          { label: "X-Axis", val: reading.x.toFixed(4), unit: "m/s²", color: "text-cyan-400", dot: "bg-cyan-400" },
-          { label: "Y-Axis", val: reading.y.toFixed(4), unit: "m/s²", color: "text-violet-400", dot: "bg-violet-400" },
-          { label: "Z-Axis", val: reading.z.toFixed(4), unit: "m/s²", color: "text-amber-400", dot: "bg-amber-400" },
-          { label: "Magnitude", val: mag.toFixed(3), unit: "vector", color: "text-rose-400", dot: "bg-rose-400" },
-          { label: "Buffer", val: String(bufferLen), unit: "pending", color: "text-cyan-400", dot: "bg-cyan-400" },
-        ].map(m => (
-          <div key={m.label} className="glass-card p-4">
-            <div className="flex items-center gap-1.5 mb-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${m.dot}`} />
-              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">{m.label}</span>
+      {/* The 3D CSS Phone Model */}
+      <div className="w-full h-full flex items-center justify-center pointer-events-none">
+        <div 
+          className="relative w-[280px] h-[580px] transition-transform duration-75 ease-out preserve-3d"
+          style={{ transform: `rotateX(${pitch}deg) rotateY(${roll}deg) rotateZ(0deg)` }}
+        >
+          {/* Front Face (Screen) */}
+          <div className="absolute inset-0 bg-[#0f172a] border-4 border-[#334155] rounded-[3rem] shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden backface-hidden translate-z-[12px]">
+            {/* Notch */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-[#334155] rounded-b-2xl shadow-md z-10 flex items-center justify-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-slate-800" />
+              <div className="w-12 h-1.5 rounded-full bg-slate-800" />
             </div>
-            <p className={`text-lg font-bold font-mono tabular-nums ${m.color}`}>{m.val}</p>
-            <p className="text-[9px] text-slate-600 mt-0.5">{m.unit}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Charts + Sidebar */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Charts */}
-        <div className="lg:col-span-3 space-y-4">
-          <div className="glass-card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                <TrendingUp size={14} className="text-cyan-400" /> Sensor Stream
-              </h2>
-              <div className="flex items-center gap-3 text-[10px] font-mono">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-cyan-400" /> X</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-400" /> Y</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> Z</span>
-              </div>
-            </div>
-            <div className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="time" tick={{ fontSize: 9, fill: "#475569" }} stroke="rgba(255,255,255,0.06)" />
-                  <YAxis tick={{ fontSize: 9, fill: "#475569" }} stroke="rgba(255,255,255,0.06)" domain={["dataMin - 1", "dataMax + 1"]} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" dataKey="x" stroke="#06b6d4" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                  <Line type="monotone" dataKey="y" stroke="#8b5cf6" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                  <Line type="monotone" dataKey="z" stroke="#f59e0b" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="glass-card p-5">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-              <Activity size={14} className="text-rose-400" /> Force Magnitude
-            </h2>
-            <div className="h-[120px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis dataKey="time" hide />
-                  <YAxis tick={{ fontSize: 9, fill: "#475569" }} stroke="rgba(255,255,255,0.06)" />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" dataKey="mag" stroke="#f43f5e" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Sketchfab 3D Smartphone (§5 Opsi B) */}
-          <div className="glass-card p-5">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-              <Smartphone size={14} className="text-violet-400" /> 3D Smartphone Model
-            </h2>
-            <div className="rounded-xl overflow-hidden" style={{ aspectRatio: "16/9" }}>
-              <iframe
-                title="Phone 3D Model"
-                frameBorder="0"
-                allowFullScreen
-                allow="autoplay; fullscreen; xr-spatial-tracking"
-                src="https://sketchfab.com/models/5c53e579e1ec49d0a68a380316c252dc/embed"
-                className="w-full h-full"
-                style={{ minHeight: "300px" }}
-              />
-            </div>
-            <p className="text-[10px] text-slate-600 mt-2 text-center">
-              3D Model oleh <a href="https://sketchfab.com/lorenzo.brewer" target="_blank" rel="nofollow" className="text-cyan-400 hover:underline">User2005</a> di <a href="https://sketchfab.com" target="_blank" rel="nofollow" className="text-cyan-400 hover:underline">Sketchfab</a>
-            </p>
-          </div>
-        </div>
-
-        {/* Right Sidebar */}
-        <div className="space-y-4">
-          <div className="glass-card p-4">
-            <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3 pb-2 border-b border-white/[0.06]">Session Stats</h3>
-            <div className="space-y-3">
-              <div className="bg-black/20 rounded-lg p-3">
-                <p className="text-[10px] text-slate-500 mb-0.5">Samples Sent</p>
-                <p className="text-lg font-bold text-white font-mono">{totalSamples}</p>
-              </div>
-              <div className="bg-black/20 rounded-lg p-3">
-                <p className="text-[10px] text-slate-500 mb-0.5">Batches</p>
-                <p className="text-lg font-bold text-white font-mono">{batchCount}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass-card p-4">
-            <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/[0.06]">
-              <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Cloud Data</h3>
-              <button onClick={fetchLatest} className="text-cyan-400 hover:text-cyan-300 p-1 rounded bg-cyan-500/10 hover:bg-cyan-500/20 transition-colors">
-                <RotateCcw size={11} />
-              </button>
-            </div>
-            {serverData ? (
-              <div className="space-y-2">
-                {[
-                  { k: "X", v: serverData.x.toFixed(4), c: "text-cyan-400" },
-                  { k: "Y", v: serverData.y.toFixed(4), c: "text-violet-400" },
-                  { k: "Z", v: serverData.z.toFixed(4), c: "text-amber-400" },
-                ].map(d => (
-                  <div key={d.k} className="flex justify-between text-xs font-mono">
-                    <span className={d.c}>{d.k}</span>
-                    <span className="text-slate-300">{d.v}</span>
-                  </div>
-                ))}
-                <div className="pt-2 mt-1 border-t border-white/[0.06]">
-                  <p className="text-[9px] text-slate-500">Last sync</p>
-                  <p className="text-[10px] text-slate-400 font-mono">{new Date(serverData.t).toLocaleTimeString()}</p>
+            
+            {/* Screen Content */}
+            <div className="flex-1 bg-gradient-to-br from-indigo-900/40 via-[#060a14] to-cyan-900/40 p-6 flex flex-col justify-center items-center text-center mt-8">
+              <Activity className={`${isActive ? 'text-emerald-400 pulse-ring' : 'text-slate-600'} mb-6`} size={48} />
+              <h2 className="text-xl font-bold text-white mb-2">Live Telemetry</h2>
+              
+              <div className="w-full space-y-3 mt-6">
+                <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex justify-between items-center text-sm shadow-inner">
+                  <span className="text-cyan-400 font-semibold text-xs tracking-widest">X</span>
+                  <span className="text-white font-mono">{reading.x.toFixed(3)}</span>
+                </div>
+                <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex justify-between items-center text-sm shadow-inner">
+                  <span className="text-violet-400 font-semibold text-xs tracking-widest">Y</span>
+                  <span className="text-white font-mono">{reading.y.toFixed(3)}</span>
+                </div>
+                <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex justify-between items-center text-sm shadow-inner">
+                  <span className="text-amber-400 font-semibold text-xs tracking-widest">Z</span>
+                  <span className="text-white font-mono">{reading.z.toFixed(3)}</span>
+                </div>
+                <div className="bg-black/60 border border-rose-500/20 rounded-xl p-4 flex justify-between items-center mt-4">
+                  <span className="text-slate-400 text-xs font-bold uppercase">MAG</span>
+                  <span className="text-rose-400 font-mono font-bold text-lg">{mag.toFixed(2)}</span>
                 </div>
               </div>
-            ) : (
-              <p className="text-xs text-slate-500 italic text-center py-3">No data yet</p>
-            )}
+            </div>
+            
+            {/* Home Indicator */}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-24 h-1 bg-white/20 rounded-full" />
           </div>
 
-          {/* Processing Info */}
-          <div className="glass-card p-4">
-            <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3 pb-2 border-b border-white/[0.06]">Processing</h3>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Filter</span>
-                <span className={filterEnabled ? "text-amber-400" : "text-slate-600"}>{filterEnabled ? "Active (α=0.2)" : "Off"}</span>
+          {/* Back Face (Casing & Camera) */}
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-700 to-slate-900 border-4 border-[#334155] rounded-[3rem] shadow-[inset_0_0_10px_rgba(255,255,255,0.1)] -translate-z-[12px] rotate-y-180 flex items-start justify-end p-6 backface-hidden">
+            {/* Camera Module */}
+            <div className="w-24 h-24 bg-slate-800 rounded-3xl border border-slate-600 shadow-xl flex flex-wrap p-2 gap-2 relative">
+              <div className="w-8 h-8 rounded-full bg-black shadow-inner flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-cyan-900/50 blur-[1px]" />
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Kalibrasi</span>
-                <span className={calibrated ? "text-emerald-400" : "text-slate-600"}>{calibrated ? "Active" : "Off"}</span>
+              <div className="w-8 h-8 rounded-full bg-black shadow-inner flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-cyan-900/50 blur-[1px]" />
               </div>
+              <div className="w-8 h-8 rounded-full bg-black shadow-inner flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-emerald-900/40 blur-[1px]" />
+              </div>
+              {/* Flash */}
+              <div className="w-4 h-4 rounded-full bg-amber-100 shadow-[0_0_10px_rgba(254,243,199,0.8)] absolute bottom-4 right-4" />
+            </div>
+            {/* Logo placeholder */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 flex flex-col items-center">
+               <Smartphone size={40} className="text-slate-300" />
+               <span className="font-bold text-slate-300 tracking-widest mt-2 uppercase text-xs">AccelCloud</span>
             </div>
           </div>
+
+          {/* Left Side Edge */}
+          <div className="absolute top-0 left-0 w-[24px] h-[580px] bg-slate-600 border-y-4 border-slate-500 rounded-l-[1rem] -translate-x-[12px] rotate-y-[-90deg] origin-left flex flex-col items-center justify-start pt-24 gap-4">
+             {/* Volume Buttons */}
+             <div className="w-1.5 h-12 bg-slate-800 rounded-r-md shadow-sm" />
+             <div className="w-1.5 h-12 bg-slate-800 rounded-r-md shadow-sm" />
+          </div>
+
+          {/* Right Side Edge */}
+          <div className="absolute top-0 right-0 w-[24px] h-[580px] bg-slate-600 border-y-4 border-slate-500 rounded-r-[1rem] translate-x-[12px] rotate-y-[90deg] origin-right flex flex-col items-center justify-start pt-32">
+             {/* Power Button */}
+             <div className="w-1.5 h-16 bg-slate-800 rounded-l-md shadow-sm" />
+          </div>
+
+          {/* Top Edge */}
+          <div className="absolute top-0 left-0 w-[280px] h-[24px] bg-slate-500 border-x-4 border-slate-600 rounded-t-[3rem] -translate-y-[12px] rotate-x-[90deg] origin-top" />
+
+          {/* Bottom Edge */}
+          <div className="absolute bottom-0 left-0 w-[280px] h-[24px] bg-slate-700 border-x-4 border-slate-600 rounded-b-[3rem] translate-y-[12px] rotate-x-[-90deg] origin-bottom flex items-center justify-center gap-4">
+             {/* Speaker Grills and Port */}
+             <div className="flex gap-1.5">
+               {[1,2,3].map(i => <div key={i} className="w-1.5 h-1.5 bg-black rounded-full shadow-inner" />)}
+             </div>
+             <div className="w-8 h-1.5 bg-black rounded-full shadow-inner" />
+             <div className="flex gap-1.5">
+               {[1,2,3].map(i => <div key={i} className="w-1.5 h-1.5 bg-black rounded-full shadow-inner" />)}
+             </div>
+          </div>
+
         </div>
       </div>
+      
+      {/* Visual styling global modifier just for this local component */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .preserve-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg) translateZ(12px); }
+        .rotate-y-\\[-90deg\\] { transform: rotateY(-90deg); }
+        .rotate-y-\\[90deg\\] { transform: rotateY(90deg); }
+        .rotate-x-\\[90deg\\] { transform: rotateX(90deg); }
+        .rotate-x-\\[-90deg\\] { transform: rotateX(-90deg); }
+        .translate-z-\\[12px\\] { transform: translateZ(12px); }
+        .-translate-z-\\[12px\\] { transform: translateZ(-12px); }
+      `}} />
+
     </div>
   );
 }
