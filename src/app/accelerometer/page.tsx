@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Activity, Play, Square, Send, Smartphone,
   Wifi, WifiOff, RotateCcw, TrendingUp,
-  Filter, Crosshair, Flame, RefreshCcw, Maximize, ScanCenter
+  Filter, Crosshair, Flame, Maximize, Minimize2
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -195,214 +195,207 @@ export default function AccelerometerPage() {
 
   const tooltipStyle = { background: "#0d1321", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", fontSize: "11px", color: "#e2e8f0" };
 
+  const [hideUI, setHideUI] = useState(false);
   const [invertX, setInvertX] = useState(false);
   const [invertY, setInvertY] = useState(false);
-  const [hideUI, setHideUI] = useState(false);
 
-  // --- 3D Rotation Math (Vector Cross-Product) ---
+  // --- 3D Rotation Math (Smooth Euler) ---
   const mX = invertX ? -reading.x : reading.x;
   const mY = invertY ? -reading.y : reading.y;
-  const mZ = reading.z;
-
-  const magnitude = Math.sqrt(mX * mX + mY * mY + mZ * mZ) || 1;
-  const ny = Math.max(-1, Math.min(1, mY / magnitude)); // Normalize and clamp
-  const nx = mX / magnitude;
-  const nz = mZ / magnitude;
-
-  const axisX = nz;
-  const axisY = 0;
-  const axisZ = -nx;
-  const angleDeg = Math.acos(ny) * (180 / Math.PI);
-
-  // Variables for the UI Text Display
-  const pitch = Math.atan2(mZ, mY) * (180 / Math.PI);
-  const rawRoll = Math.atan2(-mX, Math.sqrt(mY * mY + mZ * mZ)) * (180 / Math.PI);
+  const pitch = Math.atan2(reading.z, mY) * (180 / Math.PI);
+  const rawRoll = Math.atan2(-mX, Math.sqrt(mY * mY + reading.z * reading.z)) * (180 / Math.PI);
 
   return (
     <div className="relative w-full h-[calc(100vh-2rem)] overflow-hidden bg-[#060a14] flex flex-col items-center justify-center perspective-[1200px]">
       
-      {/* Zen Mode Toggle (Always Visible) */}
+      {/* Zen Mode Toggle — always visible */}
       <button 
         onClick={() => setHideUI(!hideUI)}
-        className="absolute top-6 right-6 z-[60] flex items-center justify-center w-10 h-10 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all backdrop-blur-md"
+        className={`absolute top-3 right-3 z-[60] flex items-center justify-center w-9 h-9 rounded-full border transition-all backdrop-blur-md active:scale-90 ${
+          hideUI
+            ? "bg-cyan-500/20 border-cyan-500/40 shadow-lg shadow-cyan-500/20"
+            : "bg-white/5 border-white/10 hover:bg-white/10"
+        }`}
         title={hideUI ? "Tampilkan UI" : "Sembunyikan UI (Zen Mode)"}
       >
-        {hideUI ? <Maximize className="text-slate-400" size={18} /> : <ScanCenter className="text-slate-400" size={18} />}
+        {hideUI ? <Maximize className="text-cyan-400" size={16} /> : <Minimize2 className="text-slate-400" size={16} />}
       </button>
 
       {/* Floating Header Controls */}
-      <div className={`absolute top-6 left-6 right-20 z-50 flex flex-wrap items-center justify-between gap-4 transition-all duration-500 delay-75 ${hideUI ? "opacity-0 pointer-events-none -translate-y-4" : "opacity-100"}`}>
-        <div className="glass-card px-5 py-3 flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Smartphone size={16} className="text-cyan-400" />
-            <span className="text-sm font-bold text-white font-mono">{deviceId}</span>
+      <div className={`absolute top-3 left-3 right-14 z-50 transition-all duration-500 delay-75 ${hideUI ? "opacity-0 pointer-events-none -translate-y-4" : "opacity-100"}`}>
+        <div className="glass-card px-2.5 py-2 md:px-5 md:py-3 flex flex-wrap items-center gap-1.5 md:gap-4">
+          {/* Device ID */}
+          <div className="flex items-center gap-1">
+            <Smartphone size={12} className="text-cyan-400" />
+            <span className="text-[10px] md:text-sm font-bold text-white font-mono">{deviceId}</span>
           </div>
-          <div className="w-px h-5 bg-white/10" />
-          {!isActive ? (
-            <button onClick={start} className="flex items-center gap-1.5 bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-cyan-500/25 active:scale-95 transition-all">
-              <Play size={14} /> Start Sensor
+          
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1 ml-auto">
+            {!isActive ? (
+              <button onClick={start} className="flex items-center gap-1 bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 px-2 py-0.5 md:px-4 md:py-1.5 rounded-md text-[10px] md:text-sm font-semibold hover:bg-cyan-500/25 active:scale-95 transition-all">
+                <Play size={10} /> Start
+              </button>
+            ) : (
+              <button onClick={stop} className="flex items-center gap-1 bg-rose-500/15 text-rose-400 border border-rose-500/25 px-2 py-0.5 md:px-4 md:py-1.5 rounded-md text-[10px] md:text-sm font-semibold hover:bg-rose-500/25 active:scale-95 transition-all">
+                <Square size={10} /> Stop
+              </button>
+            )}
+            <button onClick={send} disabled={!isActive} className="flex items-center gap-1 bg-violet-500/15 text-violet-400 border border-violet-500/25 disabled:opacity-30 px-2 py-0.5 md:px-4 md:py-1.5 rounded-md text-[10px] md:text-sm font-semibold hover:bg-violet-500/25 active:scale-95 transition-all">
+              <Send size={10} /> Send
             </button>
-          ) : (
-            <button onClick={stop} className="flex items-center gap-1.5 bg-rose-500/15 text-rose-400 border border-rose-500/25 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-rose-500/25 active:scale-95 transition-all">
-              <Square size={14} /> Stop
-            </button>
-          )}
-          <button onClick={send} disabled={!isActive} className="flex items-center gap-1.5 bg-violet-500/15 text-violet-400 border border-violet-500/25 disabled:opacity-30 px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-violet-500/25 active:scale-95 transition-all">
-            <Send size={14} /> Send Batch
-          </button>
-        </div>
+          </div>
 
-        <div className="glass-card px-5 py-3 flex items-center gap-4 text-xs font-mono">
-          <div className="flex flex-col">
-            <span className="text-slate-500">PITCH</span>
-            <span className="text-cyan-400 font-bold">{pitch.toFixed(1)}°</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-slate-500">ROLL</span>
-            <span className="text-violet-400 font-bold">{rawRoll.toFixed(1)}°</span>
-          </div>
-          <div className="w-px h-6 bg-white/10" />
-          <div className="flex flex-col">
-            <span className="text-slate-500">STATUS</span>
-            <span className="text-amber-400">{statusMsg || "Ready"}</span>
+          {/* Compact Stats */}
+          <div className="flex items-center gap-2 text-[9px] md:text-xs font-mono w-full mt-0.5 md:mt-0 pt-1 md:pt-0 border-t md:border-t-0 border-white/[0.06]">
+            <span className="text-slate-500">P</span><span className="text-cyan-400 font-bold">{pitch.toFixed(0)}°</span>
+            <span className="text-slate-500 ml-1">R</span><span className="text-violet-400 font-bold">{rawRoll.toFixed(0)}°</span>
+            <span className="ml-auto text-amber-400 truncate max-w-[100px] md:max-w-[200px] text-[9px]">{statusMsg || "Ready"}</span>
           </div>
         </div>
       </div>
 
-      {/* Floating Settings & Calibrate */}
-      <div className={`absolute bottom-6 left-6 z-50 flex flex-wrap items-center gap-3 transition-all duration-500 ${hideUI ? "opacity-0 pointer-events-none translate-y-[20px]" : "opacity-100"}`}>
-        <div className="flex gap-2">
-          <button onClick={() => setInvertY(!invertY)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-lg ${invertY ? "bg-indigo-500/30 text-white border border-indigo-500/50" : "bg-black/50 text-slate-400 border border-white/10"}`}>
-            Flip Y (Berdiri)
+      {/* Floating Bottom Controls */}
+      <div className={`absolute bottom-3 left-3 right-3 z-50 transition-all duration-500 delay-75 ${hideUI ? "opacity-0 pointer-events-none translate-y-4" : "opacity-100"}`}>
+        <div className="glass-card px-2 py-1.5 md:px-3 md:py-2.5 flex flex-wrap items-center gap-1.5 md:gap-2">
+          <button onClick={() => setInvertY(!invertY)} className={`px-2 py-1 rounded-md text-[9px] md:text-xs font-semibold transition-all ${invertY ? "bg-indigo-500/30 text-white border border-indigo-500/50" : "bg-black/40 text-slate-400 border border-white/10"}`}>
+            Flip Y
           </button>
-          <button onClick={() => setInvertX(!invertX)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-lg ${invertX ? "bg-indigo-500/30 text-white border border-indigo-500/50" : "bg-black/50 text-slate-400 border border-white/10"}`}>
-            Flip X (Kanan-Kiri)
+          <button onClick={() => setInvertX(!invertX)} className={`px-2 py-1 rounded-md text-[9px] md:text-xs font-semibold transition-all ${invertX ? "bg-indigo-500/30 text-white border border-indigo-500/50" : "bg-black/40 text-slate-400 border border-white/10"}`}>
+            Flip X
           </button>
+          <button onClick={() => { setFilterEnabled(!filterEnabled); if (!filterEnabled) resetFilter(); }} className={`flex items-center gap-0.5 px-2 py-1 rounded-md text-[9px] md:text-xs font-semibold transition-all ${filterEnabled ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" : "bg-black/40 text-slate-400 border border-white/10"}`}>
+            <Filter size={9} /> LPF
+          </button>
+          {!calibrated ? (
+            <button onClick={handleCalibrate} disabled={!isActive} className="flex items-center gap-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 disabled:opacity-30 px-2 py-1 rounded-md text-[9px] md:text-xs font-semibold active:scale-95 transition-all ml-auto">
+              <Crosshair size={9} /> Cal
+            </button>
+          ) : (
+            <button onClick={handleClearCalibration} className="flex items-center gap-0.5 bg-rose-500/15 text-rose-400 border border-rose-500/25 px-2 py-1 rounded-md text-[9px] md:text-xs font-semibold active:scale-95 transition-all ml-auto">
+              <Crosshair size={9} /> Reset
+            </button>
+          )}
         </div>
-        <button onClick={() => { setFilterEnabled(!filterEnabled); if (!filterEnabled) resetFilter(); }} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-lg ${filterEnabled ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-amber-500/20" : "bg-black/50 text-slate-400 border border-white/10 backdrop-blur-md"}`}>
-          <Filter size={14} /> LPF {filterEnabled ? "ON" : "OFF"}
-        </button>
-        {!calibrated ? (
-          <button onClick={handleCalibrate} disabled={!isActive} className="flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 disabled:opacity-30 px-4 py-2 rounded-xl text-xs font-semibold hover:bg-emerald-500/30 backdrop-blur-md active:scale-95 transition-all shadow-lg shadow-emerald-500/10">
-            <Crosshair size={14} /> Zero Calibrate
-          </button>
-        ) : (
-          <button onClick={handleClearCalibration} className="flex items-center gap-1.5 bg-rose-500/20 text-rose-400 border border-rose-500/30 px-4 py-2 rounded-xl text-xs font-semibold hover:bg-rose-500/30 backdrop-blur-md active:scale-95 transition-all shadow-lg shadow-rose-500/10">
-            <Crosshair size={14} /> Reset Calibrate
-          </button>
-        )}
       </div>
 
       {/* The 3D CSS Phone Model */}
       <div className="w-full h-full flex items-center justify-center pointer-events-none">
-        <div 
-          className="relative w-[280px] h-[580px] preserve-3d"
-          style={{ 
-            transform: `rotate3d(${axisX}, ${axisY}, ${axisZ}, ${angleDeg}deg)`,
-          }}
-        >
-          {/* Front Face (Screen) */}
-          <div className="absolute inset-0 bg-[#0f172a] border-4 border-[#334155] rounded-[3rem] shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden translate-z-[12px]">
-            {/* Notch */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-[#334155] rounded-b-2xl shadow-md z-10 flex items-center justify-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-slate-800" />
-              <div className="w-12 h-1.5 rounded-full bg-slate-800" />
-            </div>
-            
-            {/* Screen Content */}
-            <div className="flex-1 bg-gradient-to-br from-indigo-900/40 via-[#060a14] to-cyan-900/40 p-6 flex flex-col justify-center items-center text-center mt-8">
-              <Activity className={`${isActive ? 'text-emerald-400 pulse-ring' : 'text-slate-600'} mb-6`} size={48} />
-              <h2 className="text-xl font-bold text-white mb-2">Live Telemetry</h2>
+        {/* Ambient glow behind phone */}
+        <div className="absolute w-[300px] h-[500px] rounded-full bg-cyan-500/5 blur-[80px] pointer-events-none" />
+        
+        {/* Scale wrapper — shrinks the whole 3D model proportionally on mobile */}
+        <div className="scale-[0.55] sm:scale-[0.65] md:scale-[0.85] lg:scale-100">
+          <div 
+            className="relative w-[280px] h-[560px] preserve-3d"
+            style={{ 
+              transform: `rotateX(${pitch}deg) rotateZ(${rawRoll}deg)`,
+            }}
+          >
+            {/* ── Front Face (Screen) ── */}
+            <div className="absolute inset-0 bg-[#0a0f1e] border-[3px] border-slate-600/80 rounded-[2.8rem] shadow-[inset_0_0_30px_rgba(0,0,0,0.9)] flex flex-col overflow-hidden translate-z-[10px]">
+              {/* Dynamic Island */}
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-28 h-7 bg-black rounded-full z-10 flex items-center justify-center gap-3 shadow-lg">
+                <div className="w-2.5 h-2.5 rounded-full bg-slate-800 ring-1 ring-slate-700" />
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/30" />
+              </div>
               
-              <div className="w-full space-y-3 mt-6">
-                <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex justify-between items-center text-sm shadow-inner">
-                  <span className="text-cyan-400 font-semibold text-xs tracking-widest">X</span>
-                  <span className="text-white font-mono">{reading.x.toFixed(3)}</span>
+              {/* Screen Content */}
+              <div className="flex-1 bg-gradient-to-b from-indigo-950/60 via-[#080d1a] to-cyan-950/40 px-5 pt-14 pb-6 flex flex-col items-center">
+                {/* Status bar */}
+                <div className="w-full flex items-center justify-between text-[8px] text-slate-500 font-mono mb-auto">
+                  <span>9:41</span>
+                  <div className="flex items-center gap-1">
+                    <div className="flex gap-[1px]">{[4,6,8,10].map(h => <div key={h} className="w-[3px] rounded-sm bg-slate-600" style={{height: h}} />)}</div>
+                    <span>5G</span>
+                  </div>
                 </div>
-                <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex justify-between items-center text-sm shadow-inner">
-                  <span className="text-violet-400 font-semibold text-xs tracking-widest">Y</span>
-                  <span className="text-white font-mono">{reading.y.toFixed(3)}</span>
+
+                {/* Main telemetry display */}
+                <div className="flex-1 flex flex-col items-center justify-center w-full">
+                  <Activity className={`${isActive ? 'text-emerald-400 pulse-ring' : 'text-slate-700'} mb-4`} size={36} />
+                  <h2 className="text-base font-bold text-white/90 mb-1 tracking-wide">Live Telemetry</h2>
+                  <p className="text-[9px] text-slate-500 mb-5">{isActive ? "Streaming data..." : "Sensor off"}</p>
+                  
+                  <div className="w-full space-y-2">
+                    {[
+                      { label: "X", value: reading.x, color: "cyan" },
+                      { label: "Y", value: reading.y, color: "violet" },
+                      { label: "Z", value: reading.z, color: "amber" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className="bg-black/50 border border-white/[0.04] rounded-xl px-3 py-2 flex justify-between items-center">
+                        <span className={`text-${color}-400 font-bold text-[10px] tracking-[0.2em]`}>{label}</span>
+                        <span className="text-white/80 font-mono text-xs tabular-nums">{value.toFixed(3)}</span>
+                      </div>
+                    ))}
+                    <div className="bg-black/60 border border-rose-500/15 rounded-xl px-3 py-2.5 flex justify-between items-center mt-1">
+                      <span className="text-slate-500 text-[10px] font-bold tracking-wider">MAG</span>
+                      <span className="text-rose-400 font-mono font-bold text-sm tabular-nums">{mag.toFixed(2)}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex justify-between items-center text-sm shadow-inner">
-                  <span className="text-amber-400 font-semibold text-xs tracking-widest">Z</span>
-                  <span className="text-white font-mono">{reading.z.toFixed(3)}</span>
-                </div>
-                <div className="bg-black/60 border border-rose-500/20 rounded-xl p-4 flex justify-between items-center mt-4">
-                  <span className="text-slate-400 text-xs font-bold uppercase">MAG</span>
-                  <span className="text-rose-400 font-mono font-bold text-lg">{mag.toFixed(2)}</span>
-                </div>
+                
+                {/* Home Indicator */}
+                <div className="w-28 h-1 bg-white/15 rounded-full mt-auto" />
               </div>
             </div>
-            
-            {/* Home Indicator */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-24 h-1 bg-white/20 rounded-full" />
-          </div>
 
-          {/* Back Face (Casing & Camera) */}
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-700 to-slate-900 border-4 border-[#334155] rounded-[3rem] shadow-[inset_0_0_10px_rgba(255,255,255,0.1)] -translate-z-[12px] rotate-y-180 flex items-start justify-end p-6 backface-hidden">
-            {/* Camera Module */}
-            <div className="w-24 h-24 bg-slate-800 rounded-3xl border border-slate-600 shadow-xl flex flex-wrap p-2 gap-2 relative">
-              <div className="w-8 h-8 rounded-full bg-black shadow-inner flex items-center justify-center">
-                <div className="w-3 h-3 rounded-full bg-cyan-900/50 blur-[1px]" />
+            {/* ── Back Face (Casing) ── */}
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 border-[3px] border-slate-500/60 rounded-[2.8rem] shadow-[inset_0_2px_15px_rgba(255,255,255,0.08)] -translate-z-[10px] rotate-y-180 backface-hidden">
+              {/* Camera Module */}
+              <div className="absolute top-6 left-6 w-[72px] h-[72px] bg-slate-800/90 rounded-2xl border border-slate-600/50 shadow-xl p-1.5 grid grid-cols-2 gap-1">
+                {[1,2,3].map(i => (
+                  <div key={i} className="rounded-full bg-black shadow-inner flex items-center justify-center aspect-square">
+                    <div className={`w-2.5 h-2.5 rounded-full ${i === 3 ? 'bg-emerald-900/50' : 'bg-slate-800'} ring-1 ${i === 3 ? 'ring-emerald-700/30' : 'ring-slate-700/50'}`} />
+                  </div>
+                ))}
+                <div className="flex items-center justify-center">
+                  <div className="w-3 h-3 rounded-full bg-amber-100/80 shadow-[0_0_8px_rgba(254,243,199,0.6)]" />
+                </div>
               </div>
-              <div className="w-8 h-8 rounded-full bg-black shadow-inner flex items-center justify-center">
-                <div className="w-3 h-3 rounded-full bg-cyan-900/50 blur-[1px]" />
+              {/* Logo */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-15 flex flex-col items-center gap-1">
+                 <Smartphone size={32} className="text-slate-300" />
+                 <span className="font-bold text-slate-300 tracking-[0.3em] uppercase text-[8px]">AccelCloud</span>
               </div>
-              <div className="w-8 h-8 rounded-full bg-black shadow-inner flex items-center justify-center">
-                <div className="w-3 h-3 rounded-full bg-emerald-900/40 blur-[1px]" />
-              </div>
-              {/* Flash */}
-              <div className="w-4 h-4 rounded-full bg-amber-100 shadow-[0_0_10px_rgba(254,243,199,0.8)] absolute bottom-4 right-4" />
             </div>
-            {/* Logo placeholder */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-20 flex flex-col items-center">
-               <Smartphone size={40} className="text-slate-300" />
-               <span className="font-bold text-slate-300 tracking-widest mt-2 uppercase text-xs">AccelCloud</span>
+
+            {/* ── Left Side Edge ── */}
+            <div className="absolute top-0 left-0 w-[20px] h-[560px] bg-gradient-to-b from-slate-500 via-slate-600 to-slate-500 rounded-l-lg -translate-x-[10px] rotate-y-[-90deg] origin-left">
+               <div className="absolute top-[140px] left-0 w-[2px] h-10 bg-slate-800 rounded-r-sm shadow-sm" />
+               <div className="absolute top-[190px] left-0 w-[2px] h-10 bg-slate-800 rounded-r-sm shadow-sm" />
             </div>
+
+            {/* ── Right Side Edge ── */}
+            <div className="absolute top-0 right-0 w-[20px] h-[560px] bg-gradient-to-b from-slate-500 via-slate-600 to-slate-500 rounded-r-lg translate-x-[10px] rotate-y-[90deg] origin-right">
+               <div className="absolute top-[180px] right-0 w-[2px] h-14 bg-slate-800 rounded-l-sm shadow-sm" />
+            </div>
+
+            {/* ── Top Edge ── */}
+            <div className="absolute top-0 left-0 w-[280px] h-[20px] bg-slate-500 rounded-t-[2.8rem] -translate-y-[10px] rotate-x-[90deg] origin-top" />
+
+            {/* ── Bottom Edge ── */}
+            <div className="absolute bottom-0 left-0 w-[280px] h-[20px] bg-slate-600 rounded-b-[2.8rem] translate-y-[10px] rotate-x-[-90deg] origin-bottom flex items-center justify-center gap-3">
+               <div className="flex gap-1">{[1,2,3].map(i => <div key={i} className="w-1 h-1 bg-black/60 rounded-full" />)}</div>
+               <div className="w-6 h-[3px] bg-black/50 rounded-full" />
+               <div className="flex gap-1">{[1,2,3].map(i => <div key={i} className="w-1 h-1 bg-black/60 rounded-full" />)}</div>
+            </div>
+
           </div>
-
-          {/* Left Side Edge */}
-          <div className="absolute top-0 left-0 w-[24px] h-[580px] bg-slate-600 border-y-4 border-slate-500 rounded-l-[1rem] -translate-x-[12px] rotate-y-[-90deg] origin-left flex flex-col items-center justify-start pt-24 gap-4">
-             {/* Volume Buttons */}
-             <div className="w-1.5 h-12 bg-slate-800 rounded-r-md shadow-sm" />
-             <div className="w-1.5 h-12 bg-slate-800 rounded-r-md shadow-sm" />
-          </div>
-
-          {/* Right Side Edge */}
-          <div className="absolute top-0 right-0 w-[24px] h-[580px] bg-slate-600 border-y-4 border-slate-500 rounded-r-[1rem] translate-x-[12px] rotate-y-[90deg] origin-right flex flex-col items-center justify-start pt-32">
-             {/* Power Button */}
-             <div className="w-1.5 h-16 bg-slate-800 rounded-l-md shadow-sm" />
-          </div>
-
-          {/* Top Edge */}
-          <div className="absolute top-0 left-0 w-[280px] h-[24px] bg-slate-500 border-x-4 border-slate-600 rounded-t-[3rem] -translate-y-[12px] rotate-x-[90deg] origin-top" />
-
-          {/* Bottom Edge */}
-          <div className="absolute bottom-0 left-0 w-[280px] h-[24px] bg-slate-700 border-x-4 border-slate-600 rounded-b-[3rem] translate-y-[12px] rotate-x-[-90deg] origin-bottom flex items-center justify-center gap-4">
-             {/* Speaker Grills and Port */}
-             <div className="flex gap-1.5">
-               {[1,2,3].map(i => <div key={i} className="w-1.5 h-1.5 bg-black rounded-full shadow-inner" />)}
-             </div>
-             <div className="w-8 h-1.5 bg-black rounded-full shadow-inner" />
-             <div className="flex gap-1.5">
-               {[1,2,3].map(i => <div key={i} className="w-1.5 h-1.5 bg-black rounded-full shadow-inner" />)}
-             </div>
-          </div>
-
         </div>
       </div>
       
-      {/* Visual styling global modifier just for this local component */}
+      {/* 3D CSS helper styles */}
       <style dangerouslySetInnerHTML={{__html: `
         .preserve-3d { transform-style: preserve-3d; }
         .backface-hidden { backface-visibility: hidden; }
-        .rotate-y-180 { transform: rotateY(180deg) translateZ(12px); }
+        .rotate-y-180 { transform: rotateY(180deg) translateZ(10px); }
         .rotate-y-\\[-90deg\\] { transform: rotateY(-90deg); }
         .rotate-y-\\[90deg\\] { transform: rotateY(90deg); }
         .rotate-x-\\[90deg\\] { transform: rotateX(90deg); }
         .rotate-x-\\[-90deg\\] { transform: rotateX(-90deg); }
-        .translate-z-\\[12px\\] { transform: translateZ(12px); }
-        .-translate-z-\\[12px\\] { transform: translateZ(-12px); }
+        .translate-z-\\[10px\\] { transform: translateZ(10px); }
+        .-translate-z-\\[10px\\] { transform: translateZ(-10px); }
       `}} />
 
     </div>

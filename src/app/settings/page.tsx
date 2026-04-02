@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Save, Server, Smartphone, Clock, Info, ExternalLink, Radio, Shield } from "lucide-react";
+import { Save, Server, Smartphone, Clock, Info, ExternalLink, Radio, Shield, ArrowLeftRight, Copy, Check, Trash2 } from "lucide-react";
 
 export default function SettingsPage() {
   const [baseUrl, setBaseUrl] = useState("");
@@ -12,18 +12,31 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // Swap Test state
+  const [swapUrl, setSwapUrl] = useState("");
+  const [swapHistory, setSwapHistory] = useState<{ url: string; label: string; date: string }[]>([]);
+  const [swapActive, setSwapActive] = useState(false);
+  const [originalUrl, setOriginalUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [swapTestResult, setSwapTestResult] = useState<string | null>(null);
+
   // Load from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setBaseUrl(
-        localStorage.getItem("accel_base_url") ||
+      const url = localStorage.getItem("accel_base_url") ||
         process.env.NEXT_PUBLIC_BASE_URL ||
-        "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"
-      );
+        "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec";
+      setBaseUrl(url);
+      setOriginalUrl(localStorage.getItem("accel_original_url") || url);
       setDeviceId(localStorage.getItem("accel_device_id") || "dev-001");
       setBatchInterval(Number(localStorage.getItem("accel_batch_interval")) || 3);
       setSampleRate(Number(localStorage.getItem("accel_sample_rate")) || 100);
       setFirebaseEnabled(localStorage.getItem("accel_firebase_enabled") === "true");
+      setSwapActive(localStorage.getItem("accel_swap_active") === "true");
+      try {
+        const hist = JSON.parse(localStorage.getItem("accel_swap_history") || "[]");
+        setSwapHistory(hist);
+      } catch { /* ignore */ }
       setLoaded(true);
     }
   }, []);
@@ -35,39 +48,177 @@ export default function SettingsPage() {
       localStorage.setItem("accel_batch_interval", String(batchInterval));
       localStorage.setItem("accel_sample_rate", String(sampleRate));
       localStorage.setItem("accel_firebase_enabled", String(firebaseEnabled));
+      if (!swapActive) {
+        localStorage.setItem("accel_original_url", baseUrl);
+        setOriginalUrl(baseUrl);
+      }
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const handleSwapActivate = async () => {
+    if (!swapUrl.trim() || !swapUrl.includes("script.google.com")) {
+      setSwapTestResult("❌ URL tidak valid — harus berisi script.google.com");
+      return;
+    }
+    // Save original first
+    if (!swapActive) {
+      localStorage.setItem("accel_original_url", baseUrl);
+      setOriginalUrl(baseUrl);
+    }
+    // Set the swap URL as active
+    setBaseUrl(swapUrl);
+    localStorage.setItem("accel_base_url", swapUrl);
+    localStorage.setItem("accel_swap_active", "true");
+    setSwapActive(true);
+
+    // Add to history
+    const entry = {
+      url: swapUrl,
+      label: swapUrl.split("/s/")[1]?.substring(0, 20) || "Unknown",
+      date: new Date().toLocaleString("id-ID"),
+    };
+    const newHist = [entry, ...swapHistory.filter(h => h.url !== swapUrl)].slice(0, 5);
+    setSwapHistory(newHist);
+    localStorage.setItem("accel_swap_history", JSON.stringify(newHist));
+
+    // Test the URL
+    setSwapTestResult("⏳ Menguji koneksi...");
+    try {
+      await fetch(swapUrl, { method: "POST", body: JSON.stringify({ device_id: "test-swap", samples: [] }), headers: { "Content-Type": "text/plain;charset=utf-8" }, mode: "no-cors" });
+      setSwapTestResult("✅ Swap berhasil! Sekarang telemetri dikirim ke URL baru.");
+    } catch {
+      setSwapTestResult("⚠️ Fetch gagal, tapi mungkin tetap bisa (no-cors).");
+    }
+    setSwapUrl("");
+  };
+
+  const handleSwapRevert = () => {
+    setBaseUrl(originalUrl);
+    localStorage.setItem("accel_base_url", originalUrl);
+    localStorage.setItem("accel_swap_active", "false");
+    setSwapActive(false);
+    setSwapTestResult("🔄 Dikembalikan ke URL asli Anda.");
+  };
+
+  const handleCopyUrl = () => {
+    navigator.clipboard.writeText(baseUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleSwapFromHistory = (url: string) => {
+    setSwapUrl(url);
+  };
+
+  const handleClearHistory = () => {
+    setSwapHistory([]);
+    localStorage.removeItem("accel_swap_history");
+  };
+
   if (!loaded) return null;
 
   return (
-    <div className="p-6 md:p-8 max-w-[1400px] mx-auto space-y-6">
+    <div className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-5">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-white">
+        <h1 className="text-xl md:text-2xl font-bold text-white">
           <span className="gradient-text">Settings</span>
         </h1>
-        <p className="text-sm text-slate-500 mt-1">Configure API endpoint and sensor parameters</p>
+        <p className="text-xs md:text-sm text-slate-500 mt-1">Configure API endpoint and sensor parameters</p>
       </div>
 
-      {/* Swap Test Notice (§7.1) */}
-      <div className="glass-card border-amber-500/20 bg-amber-500/5 p-4">
-        <div className="flex items-start gap-3">
-          <Shield size={18} className="text-amber-400 mt-0.5 shrink-0" />
-          <div>
-            <h3 className="text-sm font-semibold text-amber-400 mb-1">Swap Test Ready (§7.1)</h3>
-            <p className="text-xs text-slate-400">
-              Base URL disimpan di <code className="text-amber-400/80 bg-amber-500/10 px-1 py-0.5 rounded">localStorage</code> — tidak di-hardcode. 
-              Dosen/penguji bisa mengganti URL ke kelompok lain untuk uji silang.
-            </p>
+      {/* ═══════════ SWAP TEST SECTION ═══════════ */}
+      <div className={`glass-card p-5 transition-all ${swapActive ? "border-amber-500/30 bg-amber-500/5" : ""}`}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+            <ArrowLeftRight size={18} className="text-amber-400" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+              Swap Test — Uji Silang GAS
+              {swapActive && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-bold animate-pulse">SWAP AKTIF</span>}
+            </h2>
+            <p className="text-xs text-slate-500">Tukar URL GAS dengan teman untuk uji silang (§7.1)</p>
           </div>
         </div>
+
+        {/* Current URL display */}
+        <div className="mb-4 bg-black/20 border border-white/[0.06] rounded-lg p-3">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">URL Aktif Sekarang</span>
+            <button onClick={handleCopyUrl} className="flex items-center gap-1 text-[10px] text-cyan-400 hover:text-cyan-300 transition-colors">
+              {copied ? <><Check size={10} /> Copied!</> : <><Copy size={10} /> Salin</>}
+            </button>
+          </div>
+          <p className="text-xs text-white font-mono break-all leading-relaxed">{baseUrl}</p>
+          {swapActive && (
+            <p className="text-[10px] text-amber-400 mt-1">⚡ Sedang menggunakan URL swap — bukan URL asli Anda</p>
+          )}
+        </div>
+
+        {/* Swap input */}
+        <div className="flex gap-2 mb-3">
+          <input
+            type="url"
+            value={swapUrl}
+            onChange={(e) => setSwapUrl(e.target.value)}
+            className="flex-1 bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white font-mono outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-all placeholder:text-slate-600"
+            placeholder="Paste URL GAS teman di sini..."
+          />
+          <button
+            onClick={handleSwapActivate}
+            className="flex items-center gap-1.5 bg-amber-500/15 text-amber-400 border border-amber-500/25 px-4 py-2.5 rounded-lg text-xs font-semibold hover:bg-amber-500/25 active:scale-95 transition-all shrink-0"
+          >
+            <ArrowLeftRight size={13} /> Swap
+          </button>
+        </div>
+
+        {/* Revert button */}
+        {swapActive && (
+          <button
+            onClick={handleSwapRevert}
+            className="w-full flex items-center justify-center gap-1.5 bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 py-2 rounded-lg text-xs font-semibold hover:bg-indigo-500/25 active:scale-95 transition-all mb-3"
+          >
+            🔄 Kembalikan ke URL Asli Saya
+          </button>
+        )}
+
+        {/* Test result */}
+        {swapTestResult && (
+          <div className="text-xs text-slate-400 bg-black/20 rounded-lg px-3 py-2 mb-3">{swapTestResult}</div>
+        )}
+
+        {/* Swap History */}
+        {swapHistory.length > 0 && (
+          <div className="border-t border-white/[0.06] pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Riwayat Swap</span>
+              <button onClick={handleClearHistory} className="text-[10px] text-slate-600 hover:text-rose-400 transition-colors flex items-center gap-1">
+                <Trash2 size={9} /> Hapus
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {swapHistory.map((h, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSwapFromHistory(h.url)}
+                  className="w-full text-left bg-black/15 hover:bg-black/30 border border-white/[0.04] rounded-lg px-3 py-2 transition-all group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-white font-mono truncate max-w-[200px]">{h.label}...</span>
+                    <span className="text-[9px] text-slate-600">{h.date}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* API Configuration */}
-      <div className="glass-card p-6">
+      <div className="glass-card p-5">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center shrink-0">
             <Server size={18} className="text-cyan-400" />
