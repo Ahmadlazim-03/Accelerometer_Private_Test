@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Activity,
   BarChart3,
@@ -14,14 +14,23 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getAccelLatest } from "@/lib/api";
+import { useSensorContext } from "@/lib/SensorContext";
+import {
+  LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip
+} from "recharts";
+
+const MAX_PTS = 50;
 
 export default function DashboardPage() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [time, setTime] = useState("");
   const [deviceId, setDeviceId] = useState("dev-001");
   const [totalSamples, setTotalSamples] = useState(0);
   const [lastAccel, setLastAccel] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+
+  // Global Sensor Context
+  const { reading, isActive } = useSensorContext();
+  const [chartData, setChartData] = useState<{ time: string; x: number; y: number; z: number }[]>([]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -52,61 +61,24 @@ export default function DashboardPage() {
   useEffect(() => {
     const tick = () => {
       const now = new Date();
-      setTime(
-        now.toLocaleTimeString("id-ID", {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        })
-      );
+      setTime(now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
 
-  /* Waveform canvas */
+  /* Capture real-time data for Dashboard preview */
   useEffect(() => {
-    const cvs = canvasRef.current;
-    if (!cvs) return;
-    const ctx = cvs.getContext("2d")!;
-    let frame = 0;
-    let raf: number;
-    const draw = () => {
-      cvs.width = cvs.offsetWidth * 2;
-      cvs.height = cvs.offsetHeight * 2;
-      ctx.scale(2, 2);
-      const w = cvs.offsetWidth;
-      const h = cvs.offsetHeight;
-      ctx.clearRect(0, 0, w, h);
-
-      const drawWave = (
-        color: string,
-        amp: number,
-        freq: number,
-        phase: number
-      ) => {
-        ctx.beginPath();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1.5;
-        for (let x = 0; x <= w; x++) {
-          const y =
-            h / 2 + Math.sin((x * freq) / w + frame * 0.02 + phase) * amp;
-          if (x === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-      };
-
-      drawWave("rgba(6,182,212,0.4)", 20, 12, 0);
-      drawWave("rgba(139,92,246,0.3)", 15, 16, 2);
-      drawWave("rgba(245,158,11,0.25)", 10, 20, 4);
-      frame++;
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-    return () => cancelAnimationFrame(raf);
-  }, []);
+    if (isActive) {
+      const now = new Date();
+      const tStr = `${now.getMinutes()}:${now.getSeconds().toString().padStart(2, "0")}`;
+      setChartData(prev => {
+        const newData = [...prev, { time: tStr, x: reading.x, y: reading.y, z: reading.z }];
+        return newData.length > MAX_PTS ? newData.slice(newData.length - MAX_PTS) : newData;
+      });
+    }
+  }, [reading, isActive]);
 
   const stats = [
     {
@@ -204,7 +176,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Waveform */}
+      {/* Waveform Realtime Graph */}
       <div className="glass-card p-5 mb-6">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -212,7 +184,7 @@ export default function DashboardPage() {
               Signal Preview
             </h2>
             <p className="text-xs text-slate-500">
-              Live waveform visualization
+              Live acceleration vector visualization
             </p>
           </div>
           <Link
@@ -222,11 +194,24 @@ export default function DashboardPage() {
             Open Live Sensor <ArrowRight size={12} />
           </Link>
         </div>
-        <canvas
-          ref={canvasRef}
-          className="w-full rounded-lg"
-          style={{ height: "160px", background: "rgba(0,0,0,0.2)" }}
-        />
+        <div className="w-full rounded-lg relative overflow-hidden" style={{ height: "160px", background: "rgba(0,0,0,0.2)" }}>
+          {isActive ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData} margin={{ top: 10, right: 0, left: -40, bottom: 0 }}>
+                <YAxis domain={["dataMin - 2", "dataMax + 2"]} tick={false} stroke="none" />
+                <Line type="monotone" dataKey="x" stroke="#06b6d4" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="y" stroke="#8b5cf6" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="z" stroke="#f59e0b" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+             <div className="absolute inset-0 flex items-center justify-center flex-col gap-2">
+               <Activity className="text-slate-600" size={24} />
+               <span className="text-xs text-slate-500 font-semibold">Sensor Inactive</span>
+               <span className="text-[10px] text-slate-600">Turn on from the sidebar to preview graph</span>
+             </div>
+          )}
+        </div>
       </div>
 
       {/* Quick Actions */}

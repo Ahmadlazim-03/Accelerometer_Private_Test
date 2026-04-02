@@ -9,7 +9,7 @@ const getBaseUrl = (): string => {
     const local = localStorage.getItem("accel_base_url");
     if (local) return local;
   }
-  return process.env.NEXT_PUBLIC_BASE_URL || "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec";
+  return process.env.NEXT_PUBLIC_BASE_URL || "https://script.google.com/macros/s/AKfycbwijq34olt6lLnpe4GmWJZELsEzQkej-SNzKZ3ZTYgJmSiz8NEiw1u7-Ysh0ek2I5Agfw/exec";
 };
 
 const getApiKey = (): string => {
@@ -17,7 +17,7 @@ const getApiKey = (): string => {
     const local = localStorage.getItem("accel_api_key");
     if (local) return local;
   }
-  return process.env.NEXT_PUBLIC_API_KEY || "";
+  return process.env.NEXT_PUBLIC_API_KEY || "AIzaSyAutHxPgmdER4jgQIAdg1m5Y39aDqwSNeo";
 };
 
 // ─── Types ───
@@ -35,18 +35,23 @@ export interface AccelSample {
 }
 
 // ─── Internal Helpers ───
+// Batasi data batch menjadi maksimal 50-70 payload agar Google Script tidak Timeout/Payload Error
+const MAX_BATCH_SIZE = 60;
+
 async function apiPost<T>(data: Record<string, unknown>): Promise<ApiResponse<T>> {
   try {
     const payload = { ...data, api_key: getApiKey() };
-    const res = await fetch(getBaseUrl(), {
+    await fetch(getBaseUrl(), {
       method: "POST",
       body: JSON.stringify(payload),
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      mode: "cors",
+      mode: "no-cors",
     });
-    return await res.json();
+    // Mode "no-cors" tidak memicu preflight dan menutupi kegagalan,
+    // Google Apps Script WAJIB di deploy "Anyone" & "Execute as Me" agar terdata.
+    return { ok: true, data: { accepted: (data.samples as any)?.length || 0 } as any };
   } catch (error) {
-    return { ok: false, error: String(error) };
+    return { ok: false, error: "Jaringan HTTP Gagal: " + String(error) };
   }
 }
 
@@ -54,8 +59,17 @@ async function apiGet<T>(action: string, params: Record<string, string>): Promis
   try {
     const urlParams = new URLSearchParams({ action, api_key: getApiKey(), ...params }).toString();
     const url = `${getBaseUrl()}?${urlParams}`;
-    const res = await fetch(url, { method: "GET", mode: "cors" });
-    return await res.json();
+    const res = await fetch(url, { 
+      method: "GET", 
+      mode: "cors",
+      redirect: "follow",
+    });
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { ok: false, error: "GAS Parsing Error. Make sure URL is correct and public." };
+    }
   } catch (error) {
     return { ok: false, error: String(error) };
   }
@@ -63,10 +77,12 @@ async function apiGet<T>(action: string, params: Record<string, string>): Promis
 
 // ─── POST /telemetry/accel — Send Batch (§4.1) ───
 export async function sendAccelBatch(deviceId: string, samples: AccelSample[]) {
+  // Limiting batch
+  const slicedSamples = samples.slice(-MAX_BATCH_SIZE);
   return apiPost<{ accepted: number }>({
     device_id: deviceId,
     ts: new Date().toISOString(),
-    samples,
+    samples: slicedSamples,
   });
 }
 

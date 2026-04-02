@@ -19,23 +19,23 @@ export function useAccelerometer() {
   const [isActive, setIsActive] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const samplesRef = useRef<AccelSample[]>([]);
-
+  
   const handleMotion = useCallback((event: DeviceMotionEvent) => {
     const acc = event.accelerationIncludingGravity;
     if (acc) {
-      const newReading: AccelReading = {
-        x: +(acc.x ?? 0).toFixed(4),
-        y: +(acc.y ?? 0).toFixed(4),
-        z: +(acc.z ?? 0).toFixed(4),
-        timestamp: Date.now(),
-      };
-      setReading(newReading);
+      const ts = Date.now();
+      const x = +(acc.x ?? 0).toFixed(4);
+      const y = +(acc.y ?? 0).toFixed(4);
+      const z = +(acc.z ?? 0).toFixed(4);
+      
+      // Simpan buffer tetap jalan
       samplesRef.current.push({
-        t: new Date().toISOString(),
-        x: newReading.x,
-        y: newReading.y,
-        z: newReading.z,
+        t: new Date().toISOString(), x, y, z,
       });
+
+      // Lepas throttler agar HP yang layarnya 60Hz (atau 120Hz)
+      // dapat ter-update dengan responsif penuh!
+      setReading({ x, y, z, timestamp: ts });
     }
   }, []);
 

@@ -12,9 +12,10 @@ import {
   ChevronRight,
   BarChart3,
   Settings,
-  PersonStanding,
+  PersonStanding
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSensorContext } from "@/lib/SensorContext";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -23,6 +24,46 @@ const links = [
   { href: "/history", label: "History", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+function GlobalSensorToggle({ collapsed }: { collapsed: boolean }) {
+  const { isActive, start, stop } = useSensorContext();
+  
+  if (collapsed) {
+    return (
+      <button 
+        onClick={isActive ? stop : start}
+        className={cn(
+          "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+          isActive ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 hover:bg-white/10 text-slate-400"
+        )}
+      >
+        <Activity size={18} className={isActive ? "animate-pulse" : ""} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="glass-card p-3 rounded-xl border border-white/10">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className={cn("w-2 h-2 rounded-full", isActive ? "bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" : "bg-slate-600")} />
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">Sensor Engine</span>
+        </div>
+        <button
+          onClick={isActive ? stop : start}
+          className={cn(
+            "text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all active:scale-95",
+            isActive 
+              ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30" 
+              : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+          )}
+        >
+          {isActive ? "STOP" : "START"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -118,6 +159,11 @@ export default function Sidebar() {
             );
           })}
         </nav>
+
+        {/* Global Sensor Toggle */}
+        <div className={cn("mt-auto px-4 mb-4 transition-all duration-300", collapsed && "px-2")}>
+           <GlobalSensorToggle collapsed={collapsed} />
+        </div>
 
         {/* Collapse Toggle (desktop only) */}
         <button

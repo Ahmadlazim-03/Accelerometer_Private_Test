@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Activity, Play, Square, Send, Smartphone,
   Wifi, WifiOff, RotateCcw, TrendingUp,
-  Filter, Crosshair, Flame,
+  Filter, Crosshair, Flame, RefreshCcw, Maximize, ScanCenter
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -195,16 +195,43 @@ export default function AccelerometerPage() {
 
   const tooltipStyle = { background: "#0d1321", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", fontSize: "11px", color: "#e2e8f0" };
 
-  // --- 3D Rotation Math ---
-  // Menghitung kemiringan (Pitch & Roll) berdasarkan gravitasi pada sumbu
-  const pitch = Math.atan2(reading.y, reading.z) * (180 / Math.PI);
-  const roll = Math.atan2(-reading.x, Math.sqrt(reading.y * reading.y + reading.z * reading.z)) * (180 / Math.PI);
+  const [invertX, setInvertX] = useState(false);
+  const [invertY, setInvertY] = useState(false);
+  const [hideUI, setHideUI] = useState(false);
+
+  // --- 3D Rotation Math (Vector Cross-Product) ---
+  const mX = invertX ? -reading.x : reading.x;
+  const mY = invertY ? -reading.y : reading.y;
+  const mZ = reading.z;
+
+  const magnitude = Math.sqrt(mX * mX + mY * mY + mZ * mZ) || 1;
+  const ny = Math.max(-1, Math.min(1, mY / magnitude)); // Normalize and clamp
+  const nx = mX / magnitude;
+  const nz = mZ / magnitude;
+
+  const axisX = nz;
+  const axisY = 0;
+  const axisZ = -nx;
+  const angleDeg = Math.acos(ny) * (180 / Math.PI);
+
+  // Variables for the UI Text Display
+  const pitch = Math.atan2(mZ, mY) * (180 / Math.PI);
+  const rawRoll = Math.atan2(-mX, Math.sqrt(mY * mY + mZ * mZ)) * (180 / Math.PI);
 
   return (
     <div className="relative w-full h-[calc(100vh-2rem)] overflow-hidden bg-[#060a14] flex flex-col items-center justify-center perspective-[1200px]">
       
+      {/* Zen Mode Toggle (Always Visible) */}
+      <button 
+        onClick={() => setHideUI(!hideUI)}
+        className="absolute top-6 right-6 z-[60] flex items-center justify-center w-10 h-10 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all backdrop-blur-md"
+        title={hideUI ? "Tampilkan UI" : "Sembunyikan UI (Zen Mode)"}
+      >
+        {hideUI ? <Maximize className="text-slate-400" size={18} /> : <ScanCenter className="text-slate-400" size={18} />}
+      </button>
+
       {/* Floating Header Controls */}
-      <div className="absolute top-6 left-6 right-6 z-50 flex flex-wrap items-center justify-between gap-4">
+      <div className={`absolute top-6 left-6 right-20 z-50 flex flex-wrap items-center justify-between gap-4 transition-all duration-500 delay-75 ${hideUI ? "opacity-0 pointer-events-none -translate-y-4" : "opacity-100"}`}>
         <div className="glass-card px-5 py-3 flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Smartphone size={16} className="text-cyan-400" />
@@ -232,7 +259,7 @@ export default function AccelerometerPage() {
           </div>
           <div className="flex flex-col">
             <span className="text-slate-500">ROLL</span>
-            <span className="text-violet-400 font-bold">{roll.toFixed(1)}°</span>
+            <span className="text-violet-400 font-bold">{rawRoll.toFixed(1)}°</span>
           </div>
           <div className="w-px h-6 bg-white/10" />
           <div className="flex flex-col">
@@ -243,7 +270,15 @@ export default function AccelerometerPage() {
       </div>
 
       {/* Floating Settings & Calibrate */}
-      <div className="absolute bottom-6 left-6 z-50 flex items-center gap-3">
+      <div className={`absolute bottom-6 left-6 z-50 flex flex-wrap items-center gap-3 transition-all duration-500 ${hideUI ? "opacity-0 pointer-events-none translate-y-[20px]" : "opacity-100"}`}>
+        <div className="flex gap-2">
+          <button onClick={() => setInvertY(!invertY)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-lg ${invertY ? "bg-indigo-500/30 text-white border border-indigo-500/50" : "bg-black/50 text-slate-400 border border-white/10"}`}>
+            Flip Y (Berdiri)
+          </button>
+          <button onClick={() => setInvertX(!invertX)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all shadow-lg ${invertX ? "bg-indigo-500/30 text-white border border-indigo-500/50" : "bg-black/50 text-slate-400 border border-white/10"}`}>
+            Flip X (Kanan-Kiri)
+          </button>
+        </div>
         <button onClick={() => { setFilterEnabled(!filterEnabled); if (!filterEnabled) resetFilter(); }} className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-lg ${filterEnabled ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-amber-500/20" : "bg-black/50 text-slate-400 border border-white/10 backdrop-blur-md"}`}>
           <Filter size={14} /> LPF {filterEnabled ? "ON" : "OFF"}
         </button>
@@ -261,11 +296,13 @@ export default function AccelerometerPage() {
       {/* The 3D CSS Phone Model */}
       <div className="w-full h-full flex items-center justify-center pointer-events-none">
         <div 
-          className="relative w-[280px] h-[580px] transition-transform duration-75 ease-out preserve-3d"
-          style={{ transform: `rotateX(${pitch}deg) rotateY(${roll}deg) rotateZ(0deg)` }}
+          className="relative w-[280px] h-[580px] preserve-3d"
+          style={{ 
+            transform: `rotate3d(${axisX}, ${axisY}, ${axisZ}, ${angleDeg}deg)`,
+          }}
         >
           {/* Front Face (Screen) */}
-          <div className="absolute inset-0 bg-[#0f172a] border-4 border-[#334155] rounded-[3rem] shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden backface-hidden translate-z-[12px]">
+          <div className="absolute inset-0 bg-[#0f172a] border-4 border-[#334155] rounded-[3rem] shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden translate-z-[12px]">
             {/* Notch */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-7 bg-[#334155] rounded-b-2xl shadow-md z-10 flex items-center justify-center gap-2">
               <div className="w-2 h-2 rounded-full bg-slate-800" />
